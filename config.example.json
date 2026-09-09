@@ -1,0 +1,30 @@
+{
+  "limits": {
+    "max_message_bytes": 65536,
+    "max_queue_size": 10000,
+    "max_connections": 256
+  },
+  "listeners": [
+    { "type": "udp", "host": "0.0.0.0", "port": 5514 },
+    { "type": "tcp", "host": "0.0.0.0", "port": 5601 }
+  ],
+  "sources": [
+    {
+      "source_id": "firewall-a",
+      "transport": "udp",
+      "peer_ip": "10.0.0.1",
+      "vendor": "Fortinet",
+      "product": "FortiGate",
+      "parser_hint": "fortigate"
+    }
+  ],
+  "siem": {
+    "type": "spool",
+    "path": "ulstp-events.jsonl"
+  },
+  "api": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 8080
+  }
+}

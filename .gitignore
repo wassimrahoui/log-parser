@@ -1,0 +1,9 @@
+# Codebuff workspace metadata
+.freebuff/
+
+# runtime artifacts
+ulstp-events.jsonl
+ulstp-spool.jsonl
+__pycache__/
+*.pyc
+.pytest_cache/
