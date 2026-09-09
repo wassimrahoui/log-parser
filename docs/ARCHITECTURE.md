@@ -122,6 +122,8 @@ parsing              decoded, protocol_metadata,        FAILED ⇒ status record
                      parse_notes
 type handling        validation_problems (values kept)  invalid value ⇒ annotated, never
                                                         removed or replaced
+field limits (§39)   FIELD_LIMIT*_EXCEEDED notes,       exceeding ⇒ annotated + counted
+                     truncated flag                     (values preserved), never removed
 validation           validation_status                  INVALID ⇒ data preserved
 delivery             delivery_status/target/attempts    FAILED ⇒ retry ⇒ SPOOLED
 ```
@@ -166,12 +168,12 @@ flowchart TB
     C -->|plain_text only| H["UNKNOWN_FORMAT status\n(lossless carrier)"]
 ```
 
-> Design note (known limitation, tracked from the architecture audit): the
-> build plan's §20 diagram has *configured source* feeding *parser resolution*.
-> In the current implementation, resolution runs before identification, so a
-> configured source's `parser_hint` is recorded as **evidence** on the event but
-> does not yet steer parser selection. Closing this is a documented next pass
-> (see `docs/DELIVERY.md` § Known limitations and BUILD_STATUS).
+> Design note (§20 wiring, closed): the pipeline consults matched configured
+> sources BEFORE parser resolution. A source's `parser_hint` steers selection —
+> hinted parser first, standard candidate walk as deterministic fallback, and
+> the decision (`hint_used` / `hint_rejected_fallback`) recorded as a parse
+> note. A hint never bypasses a parser's signature check; the configured match
+> is evaluated exactly once and reused by identification.
 
 ---
 

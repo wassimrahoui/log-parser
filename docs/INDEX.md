@@ -82,9 +82,6 @@ Every major decision follows **requirement → research → design → implement
 
 | Gap | Documented in |
 |---|---|
-| TSV detected but registry-built CSV parser is comma-only | [FORMATS](FORMATS.md) § CSV, [DELIVERY](DELIVERY.md) §5, [BUILD_STATUS](BUILD_STATUS.md) |
-| `parser_hint` recorded as evidence, not yet steering resolution | [ARCHITECTURE](ARCHITECTURE.md) §5 note, [OPERATIONS](OPERATIONS.md) §2.3 |
-| `max_field_bytes`/`max_field_count` validated but not enforced | [OPERATIONS](OPERATIONS.md) §2.1, [BUILD_STATUS](BUILD_STATUS.md) |
 | Live Wazuh/QRadar/Elastic delivery not yet verified against real instances | [testing/STRATEGY](testing/STRATEGY.md), [BUILD_STATUS](BUILD_STATUS.md) |
 | API unauthenticated (loopback default) | [SECURITY_REVIEW](SECURITY_REVIEW.md), [OPERATIONS](OPERATIONS.md) §5 |
 | UDP is lossy at transport level; no ack/replay | README § Known limitations |

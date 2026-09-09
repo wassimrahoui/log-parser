@@ -8,6 +8,12 @@ Current Objective: Maintain + extend (research-gated parser additions).
 
 ## Completed Requirements (evidence in parentheses)
 
+Audit-gap wiring pass (verified by tests/test_fix_wiring.py): TSV/semicolon
+deterministic delimiter selection (test_tsv_through_pipeline); parser_hint
+routing with fallback + recorded decision (test_parser_hint_routing);
+max_field_bytes/max_field_count enforcement as lossless annotation
+(test_field_limits).
+
 - Phase 0: skills 01–10 created + activation record (skills/INDEX.md)
 - Phase 1: repository analysis (docs/REPOSITORY_ANALYSIS.md)
 - Phase 2: telemetry research, 6 records (docs/research/)
@@ -56,7 +62,7 @@ Current Objective: Maintain + extend (research-gated parser additions).
 
 ## Tests (final)
 
-- 106 passed, 0 failed (`python -m pytest tests/ -q`)
+- 127 passed, 0 failed (`python -m pytest tests/ -q`)
 
 ## Known Limitations / Pending External Dependencies (honest, §60)
 

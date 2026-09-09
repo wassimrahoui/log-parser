@@ -1,12 +1,14 @@
 """Pipeline orchestration (build plan §9 conceptual flow).
 
-    collect → frame/decode (collector stage) → format detection → source
-    identification → parser resolution → parsing → merge/normalize →
-    lossless preservation → validation → sink (delivery layer, Phase 16)
+    collect → frame/decode (collector stage) → format detection →
+    configured-source parser_hint (§20, pre-parse) → parser resolution →
+    parsing → merge/normalize → field limits (§39) → source identification →
+    type handling → validation → sink (delivery layer)
 
 Determinism: same input + same registry/config ⇒ same event output.
 No event is ever dropped: unknown formats fall back to lossless
 preservation with explicit status (§12), failures are counted and noted.
+Limit enforcement is annotation + counted status, never deletion (Skill 03).
 """
 
 from __future__ import annotations
@@ -112,6 +114,33 @@ class Pipeline:
                 self.metrics.error(ErrorCode.SIEM_DELIVERY_ERROR)
                 event.delivery_status = event.delivery_status or None
 
+    def _enforce_field_limits(self, event: LosslessEvent) -> None:
+        """§39 field limits over the EXTRACTED layers (normalized, vendor,
+        unknown). Enforcement is annotation + counted status; values are
+        never removed, and the original_fields preservation layer is exempt
+        by design (it exists to guarantee nothing is lost)."""
+        limits = self.limits
+        oversized: List[str] = []
+        for layer_name in ("normalized", "vendor_fields", "unknown_fields"):
+            layer = getattr(event, layer_name)
+            for key, value in layer.items():
+                if isinstance(value, str):
+                    size = len(value.encode("utf-8", errors="replace"))
+                    if size > limits.max_field_bytes:
+                        oversized.append(f"{key}:{size}>{limits.max_field_bytes}")
+        extracted = (len(event.normalized) + len(event.vendor_fields)
+                     + len(event.unknown_fields))
+        over_count = extracted - limits.max_field_count
+        for item in oversized:
+            event.add_parse_note(f"FIELD_LIMIT_EXCEEDED:{item}")
+        if over_count > 0:
+            event.add_parse_note(
+                f"FIELD_COUNT_LIMIT_EXCEEDED:{over_count}_beyond_{limits.max_field_count}"
+            )
+        if oversized or over_count > 0:
+            event.truncated = True
+            self.metrics.inc("events_field_limits")
+
     # ------------------------------------------------------------------ core stage sequence
     def _process_event(self, event: LosslessEvent) -> None:
         text = event.raw_message or ""
@@ -121,8 +150,16 @@ class Pipeline:
         candidates = detect_formats_multi(text)
         primary_format = candidates[0] if candidates else FORMAT_UNKNOWN
 
-        # 2) parser resolution (deterministic, §14/§9)
-        parser = self.registry.resolve(candidates, text)
+        # 2) parser resolution (deterministic, §14/§9/§20). A matched
+        # configured source may carry a parser_hint: the hinted parser is
+        # tried first, fallback is the standard walk, and the routing
+        # decision is recorded on the event. The configured match is
+        # evaluated exactly once here and reused by identification below.
+        pre_matched = self.source_identifier.pre_parse_hint(event)
+        hint = pre_matched[0].parser_hint if pre_matched[0] is not None else None
+        parser, hint_decision = self.registry.resolve_with_hint(candidates, text, hint)
+        if hint_decision is not None:
+            event.add_parse_note(f"PARSER_HINT:{hint_decision}:{hint}")
 
         result = None
         inner_result = None
@@ -178,6 +215,11 @@ class Pipeline:
             elif "PARTIAL" in statuses:
                 event.parse_status = ParseStatus.PARTIAL.value
 
+        # 3.5) field-level resource limits (§39): exceeding a field limit is
+        # an explicit, counted, per-field note — values are never deleted
+        # (Skill 03 lossless rule).
+        self._enforce_field_limits(event)
+
         # parse budget observation (Skill 09; preemptive kill is documented
         # as a limitation — synchronous parser records overruns explicitly)
         duration_ms = (time.perf_counter() - started) * 1000.0
@@ -186,7 +228,7 @@ class Pipeline:
             event.add_parse_note("PARSE_BUDGET_EXCEEDED:recorded (synchronous parse)")
 
         # 4) source identification (deterministic, explainable, §20)
-        ident = self.source_identifier.identify(event)
+        ident = self.source_identifier.identify(event, pre_matched=pre_matched)
         event.source_status = ident.status
         event.vendor = ident.vendor
         event.product = ident.product

@@ -73,7 +73,7 @@ Every event carries all layers (see `ulstp/event.py`):
 | FortiGate | `fortigate` | researched field mapping; every key also kept in vendor layer |
 | Cisco ASA/PIX/FWSM | `cisco_asa` | token grammar + researched sub-grammars (302013/302014/302015); other IDs → PARTIAL with body preserved |
 | JSON Lines | `json` | duplicate keys preserved, arrays intact, depth-bounded |
-| CSV/TSV | `csv` | config-driven schema; no-schema ⇒ columns as `col_N` + PARTIAL |
+| CSV/TSV | `csv` | config-driven schema; auto delimiter (comma/tab/semicolon, most frequent wins, deterministic) or configured; no-schema ⇒ columns as `col_N` + PARTIAL |
 | anything else | `plain_text` | lossless fallback carrier, status UNKNOWN_FORMAT |
 
 Syslog envelopes chain to inner formats (`rfc3164+cef`, `rfc3164+cisco_asa`).
@@ -130,11 +130,28 @@ tests/            unit / golden / lossless / unknown-source / E2E / delivery
 tests/telemetry/  corpus incl. malformed samples per family
 ```
 
-## Known limitations
+## Blockers & resolution status
 
-- Live-SIEM delivery verification pending external instances (adapters are
-  protocol-tested against real local receivers).
-- UDP is lossy by nature (transport-level); no transport-level ack/replay.
-- API has no authentication (loopback default; operator decision to expose).
-- Parser budget is recorded, not preemptively enforced (synchronous parse).
-- Vendor coverage is research-gated — see `docs/RESEARCH_GAP_ANALYSIS.md`.
+### Blockers — reason and suggested solutions
+
+| Blocker | Reason | Suggested solution |
+|---|---|---|
+| **Live-SIEM delivery unverified** | No Wazuh / QRadar / Elasticsearch instance exists in this environment; adapters are protocol-tested only against real local receivers (sockets + HTTP) | Spin up targets (docker-compose Wazuh + Elasticsearch, or QRadar CE), point `siem` config at them, run `ulstp run --config`, confirm events land, record the result in `docs/BUILD_STATUS.md` (§60) |
+| CSV schema/delimiter not configurable at runtime | Registry builds `CsvParser()` with defaults; `config.py` has no parser-parameters section | Add a `parsers.csv` config section (`schema`, `delimiter`, `has_header`) and pass it through `runtime` into registry construction |
+| API unauthenticated | Inspection surface designed for loopback; authentication adds credential handling beyond current scope | Keep loopback-only (default) or front with an authenticating reverse proxy; native API keys if ever exposed beyond loopback |
+| UDP transport loss | UDP has no ack/retry by protocol definition | Use the TCP listener (RFC 6587) for guaranteed delivery; recover gaps via source-side `ulstp replay` |
+| Parse budget recorded, not preemptively enforced | Parsing is synchronous in one worker thread; mid-parse kill needs watchdog machinery | Isolate parsing (subprocess or signal-based timeout) if pathological inputs are ever observed; budget is configurable and overruns are noted per event today |
+| Delivery backpressure is dual-queue | Pipeline→delivery handoff is a second bounded queue; a target outage fills the spool path instead of slowing collectors | Bounded + counted by design; for strict end-to-end backpressure, sink events directly from the pipeline worker (single-queue variant) |
+| Vendor coverage research-gated | Anti-hallucination rule: no parser without researched documentation/samples | Extend on demand per `docs/RESEARCH_GAP_ANALYSIS.md`: research record → parser → corpus → docs |
+
+### What was done vs. what remains per blocker
+
+| Blocker | What was done | What is to be done if the blocker is resolved |
+|---|---|---|
+| Live-SIEM verification | Wazuh (syslog, JSON-in-MSG), QRadar (LEEF 1.0), Elasticsearch `_bulk` (per-item error checking) adapters implemented; bounded retry → spool fallback; honest per-item/per-attempt statuses; all delivery tests green against real local receivers | Run against live instances; confirm events appear in each target (Wazuh alerts index / Elastic index / QRadar DSM); mark §60 verified in `docs/BUILD_STATUS.md` |
+| CSV config wiring | `CsvParser` supports `schema`/`delimiter`/`has_header` parameters plus deterministic auto-delimiter (comma/tab/semicolon); fully unit + pipeline tested | Wire config → registry, add tests for config-supplied schemas, update `docs/OPERATIONS.md` §2 |
+| API auth | Read-only inspection API + `POST /api/parse`, loopback default, secrets-from-env pattern already established | Choose mechanism (proxy or token), implement, update `docs/SECURITY_REVIEW.md` |
+| UDP loss | TCP listener fully implemented (octet-count + newline framing, auto-detected) as the reliable alternative | Nothing to build — operational choice; optionally add a spool-replay recovery runbook |
+| Parse budget | Overrun recorded per event (`PARSE_BUDGET_EXCEEDED`), budget configurable | Implement watchdog/preemption, re-benchmark, update Skill 09 notes |
+| Delivery backpressure | Both queues bounded; overflow explicitly counted (`delivery_queue_overflow`), spool never discards | Decide per deployment whether single-queue strict backpressure is wanted; implement behind config flag |
+| Vendor coverage | 6 research records, 10 deterministic parsers with researched deviations, published gap analysis | Per source, on demand: research → parser → golden corpus → docs (§48 extension contract) |

@@ -172,7 +172,7 @@ Token grammar (researched): `%DAEMON-SEVERITY-MSGID: body`
 | No schema configured | ✓ columns as `col_1..col_N`, status PARTIAL (`CSV_NO_SCHEMA`), full data preserved |
 | Column-count mismatch | ◻ `CSV_COLUMN_COUNT_MISMATCH` + PARTIAL |
 | RFC 4180 quoting (`"x,y"`) | ✓ |
-| **TSV today** | detected as `csv`, but the registry-built parser is comma-only ⇒ falls to `unknown` with full preservation — **known gap**, see `docs/DELIVERY.md` § Known limitations |
+| Delimiter selection | deterministic per message: configured delimiter wins; otherwise comma/tab/semicolon by frequency, ties in that order — recorded in `decoded.csv_delimiter` |
 
 ---
 

@@ -74,14 +74,18 @@ One JSON file drives everything. Full example with every section:
 | Key | Default | Effect |
 |---|---|---|
 | `max_message_bytes` | 262144 | Frame/dgram above this ⇒ counted `LIMIT_EXCEEDED`, raw bytes counted, never parsed |
+| `max_field_bytes` | 8192 | Extracted field larger than this ⇒ `FIELD_LIMIT_EXCEEDED` note + `truncated` flag; value preserved (annotation, not deletion) |
+| `max_field_count` | 512 | More extracted fields than this ⇒ `FIELD_COUNT_LIMIT_EXCEEDED` note; values preserved |
 | `max_queue_size` | 10000 | Bounded queues: collector→pipeline and pipeline→delivery |
 | `max_connections` | 256 | Concurrent TCP connections per listener |
 
-> Honesty note (from the architecture audit): the declared `max_field_bytes` /
-> `max_field_count` / `max_nested_depth` values are validated but **not yet
-> enforced** at the merge stage — the nested-depth guard inside the JSON parser
-> (`max_nested_depth`, 32) is enforced. Enforcing the rest is a tracked next
-> pass (BUILD_STATUS).
+> Honesty note: `max_message_bytes`, `max_queue_size`, `max_connections`, and
+> (inside the JSON parser) `max_nested_depth` are enforced at their owning
+> boundaries. `max_field_bytes` / `max_field_count` are enforced at the merge
+> stage as **annotation, not deletion**: exceeding fields get explicit
+> `FIELD_LIMIT_EXCEEDED` / `FIELD_COUNT_LIMIT_EXCEEDED` notes and the
+> `truncated` flag, while every value is preserved losslessly (Skill 03 — a
+> limit never deletes telemetry).
 
 ### 2.2 `listeners` (`ulstp/collectors.py`)
 
@@ -100,9 +104,11 @@ the transport metadata. Match ⇒ identity **KNOWN** with this evidence chain:
 configured_source=firewall-a  transport=udp  peer=10.0.0.1
 ```
 
-`vendor`/`product` label the identity; `parser_hint` is currently recorded as
-evidence only — it does not yet steer parser selection (known gap, see
-`ARCHITECTURE.md` §5). Unknown peers still parse: identity **UNKNOWN** is a
+`vendor`/`product` label the identity. When a source matches, its
+`parser_hint` steers parser resolution: the hinted parser is tried first and
+the standard candidate walk takes over if it rejects (the decision is recorded
+as a `PARSER_HINT:hint_used|hint_rejected_fallback:<name>` parse note). A hint
+never bypasses a parser's signature check. Unknown peers still parse: identity **UNKNOWN** is a
 valid state, never a rejection (§12 of the build plan).
 
 ### 2.4 `siem` (one target — `ulstp/delivery.py`)

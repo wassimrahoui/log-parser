@@ -88,9 +88,9 @@ Consequences worth knowing:
 - A CEF message inside RFC3164 gets **both** grammars applied (chain), and its
   `format_detected` stays `rfc3164` (the wire format), with the inner parse
   visible as `parser = rfc3164+cef`.
-- A pure-TSV record currently detects as `csv` but the registry's CSV parser is
-  comma-only — known gap (see `docs/DELIVERY.md` → limitations), falls to
-  `unknown` with full preservation rather than mis-parsing.
+- Tab- and semicolon-separated records parse through the `csv` parser with
+  the delimiter chosen deterministically (most frequent candidate; ties break
+  comma → tab → semicolon) and recorded in `decoded.csv_delimiter`.
 - When the fallback carrier is used, status is honestly `UNKNOWN_FORMAT`, never
   a fake `PARSED`.
 

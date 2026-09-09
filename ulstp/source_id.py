@@ -9,6 +9,11 @@ order; the first deterministic hit determines the result class:
   4. transport metadata only                                     -> UNKNOWN
 
 No probabilistic scoring; no certainty invention. Unknown sources are valid.
+
+§20 configuration→resolution wiring: the pipeline consults
+``pre_parse_hint`` BEFORE parser resolution so a matched configured source's
+``parser_hint`` can steer parser selection; ``identify`` then reuses the
+pre-matched definition (via ``pre_matched``) instead of re-evaluating it.
 """
 
 from __future__ import annotations
@@ -65,8 +70,32 @@ _SIGNATURES: List[Tuple[str, "re.Pattern[str]", str, str]] = [
 class SourceIdentifier:
     definitions: List[SourceDefinition] = field(default_factory=list)
 
-    def identify(self, event: LosslessEvent) -> SourceIdentification:
+    def pre_parse_hint(self, event: LosslessEvent
+                       ) -> Tuple[Optional[SourceDefinition], List[Evidence]]:
+        """Match configured sources BEFORE parsing (§20: configured source
+        feeds parser resolution).
+
+        Only exact configured matches are consulted — a parser_hint is a
+        deterministic routing instruction from configuration, never a guess
+        from message content. Returns (matched definition or None, evidence);
+        the evidence is reused verbatim by identify() so the configured match
+        is evaluated exactly once."""
         evidence: List[Evidence] = []
+        for d in self.definitions:
+            if self._matches_definition(d, event):
+                evidence.append(("configured_source", d.source_id))
+                if d.parser_hint:
+                    evidence.append(("parser_hint", d.parser_hint))
+                return d, evidence
+        return None, evidence
+
+    def identify(self, event: LosslessEvent,
+                 pre_matched: Optional[Tuple[Optional[SourceDefinition], List[Evidence]]] = None
+                 ) -> SourceIdentification:
+        if pre_matched is not None:
+            pre_def, evidence = pre_matched
+        else:
+            pre_def, evidence = None, []
         raw = event.raw_message or ""
         ident = SourceIdentification(evidence=evidence)
 
@@ -82,19 +111,31 @@ class SourceIdentifier:
         if event.file_path is not None:
             evidence.append(("file", event.file_path))
 
-        # 1) configured definitions (deterministic exact matches)
-        for d in self.definitions:
-            if self._matches_definition(d, event):
-                evidence.append(("configured_source", d.source_id))
-                if d.parser_hint:
-                    evidence.append(("parser_hint", d.parser_hint))
+        # 1) configured definitions (deterministic exact matches). When the
+        # pipeline pre-matched before parsing, reuse that definition — the
+        # match was already evaluated exactly once (pre_parse_hint).
+        if pre_matched is not None:
+            if pre_def is not None:
                 ident.status = SourceStatus.KNOWN.value
-                ident.source_id = d.source_id
-                ident.vendor = d.vendor
-                ident.product = d.product
-                ident.parser_hint = d.parser_hint
+                ident.source_id = pre_def.source_id
+                ident.vendor = pre_def.vendor
+                ident.product = pre_def.product
+                ident.parser_hint = pre_def.parser_hint
                 ident.confidence_source = "configured"
                 return ident
+        else:
+            for d in self.definitions:
+                if self._matches_definition(d, event):
+                    evidence.append(("configured_source", d.source_id))
+                    if d.parser_hint:
+                        evidence.append(("parser_hint", d.parser_hint))
+                    ident.status = SourceStatus.KNOWN.value
+                    ident.source_id = d.source_id
+                    ident.vendor = d.vendor
+                    ident.product = d.product
+                    ident.parser_hint = d.parser_hint
+                    ident.confidence_source = "configured"
+                    return ident
 
         # 2) message signatures
         for name, pattern, vendor, product in _SIGNATURES:

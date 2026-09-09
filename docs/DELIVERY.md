@@ -115,5 +115,6 @@ invented and nothing dropped.
 3. **No TLS syslog output yet.** TLS is supported on the Elasticsearch side via
    `https://`; the syslog/LEEF adapters currently do plain TCP/UDP (documented
    extension point in `docs/ARCHITECTURE.md` § Extension points).
-4. **`parser_hint` is recorded but not yet routed** into parser selection
-   (evidence only) — see `docs/ARCHITECTURE.md` §5 note.
+4. ~~`parser_hint` is recorded but not yet routed~~ **Resolved:** hints now
+   steer parser resolution (hinted parser first, deterministic fallback,
+   `PARSER_HINT:*` note on the event) — see `docs/OPERATIONS.md` §2.3.
