@@ -50,7 +50,7 @@ Current Objective: Maintain + extend (research-gated parser additions).
 - Phase 43: security review (docs/SECURITY_REVIEW.md)
 - Phase 44: performance review (docs/PERFORMANCE_REVIEW.md — ~9.6k ev/s single
   thread, 0.10 ms/event, bounded memory)
-- Phase 45: documentation (README, ARCHITECTURE, parser contracts, testing)
+- Phase 45: documentation — README, full doc suite with diagrams (INDEX, ARCHITECTURE, EVENT_MODEL, PIPELINE_WALKTHROUGH, FORMATS, DELIVERY, OPERATIONS), parser contracts, testing strategy
 - Phase 46: acceptance checklist — all items verifiable in repo (README + docs)
 - Phase 47: completion verification below
 

@@ -109,6 +109,15 @@ Same input + same config + same parser version ⇒ byte-identical structured
 output (enforced by tests). No ML/LLM/embeddings/fuzzy matching at runtime —
 parsing is grammar-, signature-, and configuration-based only.
 
+## Documentation
+
+Start at [docs/INDEX.md](docs/INDEX.md) — it maps every document by audience
+(understand / operate / extend / audit). Highlights: architecture with diagrams
+(`docs/ARCHITECTURE.md`), the lossless event model (`docs/EVENT_MODEL.md`),
+per-format grammar reference (`docs/FORMATS.md`), operations guide
+(`docs/OPERATIONS.md`), SIEM delivery semantics (`docs/DELIVERY.md`), and a full
+end-to-end walkthrough (`docs/PIPELINE_WALKTHROUGH.md`).
+
 ## Layout
 
 ```text
